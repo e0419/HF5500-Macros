@@ -1,0 +1,14 @@
+HOME
+
+;MAKE SURE RADIUS AND DIAMETER ARE IN TOOL TABLE
+T="CAL_TYPA"
+M6
+D1
+
+;NCG#BL9901#bguilas.com#PRGCODE#*NCG;*RO*;*HD*
+;##1#8#17#1##2#0.000394#0.236220472440945#0#"\\"#""#"\\"#"png"#"png"#"png"#1#0##3##25.4#"\\bsk_cncl.png"#"\\bsk_ok.png"#2#1#0#"BL9901"#*NCG;*RO*;*HD*
+BL9901(2,0.000394,0.236220472440945,0)
+;#END#*NCG;*RO*;*HD*
+
+HOME
+M17
