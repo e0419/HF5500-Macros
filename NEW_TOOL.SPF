@@ -16,6 +16,7 @@ IF $TC_TP8[$P_TOOLNO]B_AND'B10000000' GOTOF lbl_END
 lbl_MEASURE_TOOL:
 MSG("Measuring Tool in Spindle")
 
+M09
 S3750 M3
 D1
 
