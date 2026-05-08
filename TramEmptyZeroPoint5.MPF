@@ -13,9 +13,6 @@
 ;   G54..G57   -> WCSIDX = WCSNUM - 53
 ;   G505..G599 -> WCSIDX = WCSNUM - 500
 ;
-; Indirect activation:
-;   WCSG = WCSIDX + 1
-;   G[8]=WCSG
 ;=========================================================
 
 ;-------------------------
@@ -212,10 +209,6 @@ G0 Z=ZSAFE1
 G0 X=-1.2500 Y=-2.0000 Z=TOP_START
 CYCLE978(0,,,1,0,TOP_DFA,TOP_TSA,3,2,1,"",,0,1.01,1.01,-1.01,,,,,1,1,)
 STOPRE
-R1=_OVR[7]
-R2=_OVR[6]
-R3=_OVR[5]
-M0
 ZP1 = _OVR[7]
 G0 Z=TOP_START
 
