@@ -1,0 +1,327 @@
+;Heller Tram Zero Point Pallet
+
+;=========================================================
+; HELLER HF5500 / SINUMERIK 840D sl
+; Tram B-axis skew using:
+;   - 2 bore center measurements (CYCLE977)
+;   - 6 top-surface Z hits (CYCLE978)
+;
+; WCS is selected explicitly in USER SETTINGS using:
+;   WCSNUM = 54..57 or 505..599
+;
+; Mapping:
+;   G54..G57   -> WCSIDX = WCSNUM - 53
+;   G505..G599 -> WCSIDX = WCSNUM - 500
+;
+; Indirect activation:
+;   WCSG = WCSIDX + 1
+;   G[8]=WCSG
+;=========================================================
+
+;-------------------------
+; VARIABLES
+;-------------------------
+DEF INT  WCSNUM
+DEF INT  WCSIDX
+DEF INT  WCSG
+
+DEF REAL NOM_X, NOM_Y, NOM_Z
+DEF REAL HOLE2_X
+DEF REAL ZHOLE, ZSAFE1, ZSAFE2, TOP_START
+DEF REAL MAXTOPDEV
+
+DEF REAL BORE_DIA, PROBE_TIP_DIA
+DEF REAL HOLE_DFA, HOLE_TSA
+DEF REAL TOP_DFA, TOP_TSA
+
+DEF REAL WCS_X, WCS_Y, WCS_Z
+DEF REAL WCS_B
+DEF REAL HX1, HY1, HX2, HY2
+
+DEF REAL DX, DY, BANG
+
+DEF REAL ZP1, ZP2, ZP3, ZP4, ZP5, ZP6
+DEF REAL ZHIGH, ZLOW, ZDEV
+
+;-------------------------
+; USER SETTINGS
+;-------------------------
+M0
+;MAKE SURE ZERO POINT BASE IS EMPTY
+;SET WCS BELOW
+
+WCSNUM        = 56         ; 54..57 or 505..599
+
+; Nominal location of hole #1 from machine zero
+; Converted from mm to inches
+NOM_X         = -7.874016  ; -200 mm
+NOM_Z         =  3.937008  ; -100 mm
+NOM_Y         =  0.393701  ; +10 mm
+
+; Hole #2 nominal from hole #1
+HOLE2_X       = 15.748032  ; +400 mm
+
+; Probe / feature data in inches
+BORE_DIA      = 1.574803   ; 40 mm nominal bore
+PROBE_TIP_DIA = 0.236220   ; 6 mm tip dia
+
+; Heights / tolerances
+ZHOLE         = -0.250000
+ZSAFE1        =  1.000000
+ZSAFE2        = 20.000000
+TOP_START     =  1.000000
+MAXTOPDEV     =  0.002500
+
+; Measuring path / safe area
+HOLE_DFA      =  0.750000
+HOLE_TSA      =  0.200000
+
+; For top surface hits in -Z
+TOP_DFA       =  0.500000
+TOP_TSA       =  0.200000
+
+;=========================================================
+; STARTUP
+;=========================================================
+G70 G17 G90 G94
+HOME
+
+; Load probe
+T="9999"
+M6
+D1
+
+;---------------------------------------------------------
+; Convert requested WCS number to $P_UIFR index
+; G54..G57   => 1..4
+; G505..G599 => 5..99
+;---------------------------------------------------------
+WCSIDX = 0
+
+IF WCSNUM<54 GOTOF CHK_505
+IF WCSNUM>57 GOTOF CHK_505
+WCSIDX = WCSNUM - 53
+GOTOF WCSIDX_OK
+
+CHK_505:
+IF WCSNUM<505 GOTOF NO_WCS
+IF WCSNUM>599 GOTOF NO_WCS
+WCSIDX = WCSNUM - 500
+GOTOF WCSIDX_OK
+
+NO_WCS:
+MSG("INVALID WCSNUM - USE 54..57 OR 505..599")
+SETAL(65502)
+M0
+
+WCSIDX_OK:
+WCSG = WCSIDX + 1
+
+; Initialize selected WCS to the nominal pallet location
+WCS_X  = NOM_X
+WCS_Y  = NOM_Y
+WCS_Z  = NOM_Z
+WCS_B  = 0.
+
+$P_UIFR[WCSIDX,X,TR] = WCS_X
+$P_UIFR[WCSIDX,Y,TR] = WCS_Y
+$P_UIFR[WCSIDX,Z,TR] = WCS_Z
+$P_UIFR[WCSIDX,B,TR] = WCS_B
+STOPRE
+
+; Activate selected WCS
+G[8]=WCSG
+
+;=========================================================
+; 1) ZERO A/B, THEN SWIVEL TABLE PERPENDICULAR TO SPINDLE
+;=========================================================
+G0 A0 B0
+CYCLE800(1,"H",200000,54,0,0,0,0,-90,0,0,0,0,1,100,101)
+
+;=========================================================
+; 2) PROBE HOLE #1 AT X0 Y0 Z-0.250
+;=========================================================
+G0 X0. Y0.
+G0 Z=ZSAFE1
+G1 Z=ZHOLE F20.
+
+CYCLE977(1,,,1,1.5748,,,1,1,0,1,1,,,1,"",,0,1.01,1.01,-1.01,,,,,1,1)
+STOPRE
+
+HX1 = _OVR[5]
+HY1 = _OVR[6]
+
+G0 Z=ZSAFE1
+
+;=========================================================
+; 3) PROBE HOLE #2 AT X+15.748032 Y0 Z-0.250
+;=========================================================
+G0 X=HOLE2_X Y=0 Z=ZSAFE1
+G1 Z=ZHOLE F20.
+
+CYCLE977(1,,,1,1.5748,,,1,1,0,1,1,,,1,"",,0,1.01,1.01,-1.01,,,,,1,1)
+STOPRE
+
+HX2 = _OVR[5]
+HY2 = _OVR[6]
+
+G0 Z=ZSAFE2
+STOPRE
+
+;=========================================================
+; 4) CALCULATE SKEW, ROTATE B, STORE B OFFSET IN SELECTED WCS
+;=========================================================
+DX   = HX2 - HX1
+DY   = HY2 - HY1
+BANG = ATAN2(DY,DX)
+
+G0 Z=ZSAFE2
+
+; Sign based on your prove-out
+WCS_B = BANG
+$P_UIFR[WCSIDX,B,TR] = WCS_B
+STOPRE
+
+; Re-activate selected WCS so updated B offset is used
+G[8]=WCSG
+
+CYCLE800(0,"H",200000,54,0,0,0,0,-90,0,0,0,0,1,,101)
+G0 B0.
+
+;=========================================================
+; 5) RE-PROBE HOLE #1, LET CYCLE977 UPDATE SELECTED WCS X/Y
+;=========================================================
+G0 X0 Y0 Z=ZSAFE1
+G1 Z=ZHOLE F20.
+G[8]=WCSG
+
+CYCLE977(101,19000,,1,1.5748,,,1,1,0,1,1,,,1,"",,0,1.01,1.01,-1.01,0.34,1,0,,1,1)
+STOPRE
+
+; Re-activate selected WCS so updated XY is used
+G[8]=WCSG
+G0 Z=ZSAFE1
+
+;=========================================================
+; 6) SIX TOP-SURFACE HITS
+; Highest measured point becomes Y0
+; Alarm if spread exceeds 0.0025
+;=========================================================
+
+; ---- P1  X-1.25  Y-2.0 ----
+G0 X=-1.2500 Y=-2.0000 Z=TOP_START
+CYCLE978(0,,,1,0,TOP_DFA,TOP_TSA,3,2,1,"",,0,1.01,1.01,-1.01,,,,,1,1,)
+STOPRE
+R1=_OVR[7]
+R2=_OVR[6]
+R3=_OVR[5]
+M0
+ZP1 = _OVR[7]
+G0 Z=TOP_START
+
+; ---- P2  X6.625  Y-2.0 ----
+G0 X=6.6250 Y=-2.0000 Z=TOP_START
+CYCLE978(0,,,1,0,TOP_DFA,TOP_TSA,3,2,1,"",,0,0,0,0,,,,,1,0,)
+STOPRE
+ZP2 = _OVR[7]
+G0 Z=TOP_START
+
+; ---- P3  X17.0  Y-2.0 ----
+G0 X=17.0000 Y=-2.0000 Z=TOP_START
+CYCLE978(0,,,1,0,TOP_DFA,TOP_TSA,3,2,1,"",,0,0,0,0,,,,,1,0,)
+STOPRE
+ZP3 = _OVR[7]
+G0 Z=TOP_START
+
+; ---- P4  X-1.25  Y9.875 ----
+G0 X=-1.2500 Y=9.8750 Z=TOP_START
+CYCLE978(0,,,1,0,TOP_DFA,TOP_TSA,3,2,1,"",,0,0,0,0,,,,,1,0,)
+STOPRE
+ZP4 = _OVR[7]
+G0 Z=TOP_START
+
+; ---- P5  X6.625  Y9.875 ----
+G0 X=6.6250 Y=9.8750 Z=TOP_START
+CYCLE978(0,,,1,0,TOP_DFA,TOP_TSA,3,2,1,"",,0,0,0,0,,,,,1,0,)
+STOPRE
+ZP5 = _OVR[7]
+G0 Z=TOP_START
+
+; ---- P6  X17.0  Y9.875 ----
+G0 X=17.0000 Y=9.8750 Z=TOP_START
+CYCLE978(0,,,1,0,TOP_DFA,TOP_TSA,3,2,1,"",,0,0,0,0,,,,,1,0,)
+STOPRE
+ZP6 = _OVR[7]
+G0 Z=ZSAFE2
+
+;-------------------------
+; Highest point
+;-------------------------
+ZHIGH = ZP1
+STOPRE
+IF ZP2<=ZHIGH GOTOF SKIP_H2
+ZHIGH = ZP2
+SKIP_H2:
+STOPRE
+IF ZP3<=ZHIGH GOTOF SKIP_H3
+ZHIGH = ZP3
+SKIP_H3:
+STOPRE
+IF ZP4<=ZHIGH GOTOF SKIP_H4
+ZHIGH = ZP4
+SKIP_H4:
+STOPRE
+IF ZP5<=ZHIGH GOTOF SKIP_H5
+ZHIGH = ZP5
+SKIP_H5:
+STOPRE
+IF ZP6<=ZHIGH GOTOF SKIP_H6
+ZHIGH = ZP6
+SKIP_H6:
+
+;-------------------------
+; Lowest point
+;-------------------------
+ZLOW = ZP1
+STOPRE
+IF ZP2>=ZLOW GOTOF SKIP_L2
+ZLOW = ZP2
+SKIP_L2:
+STOPRE
+IF ZP3>=ZLOW GOTOF SKIP_L3
+ZLOW = ZP3
+SKIP_L3:
+STOPRE
+IF ZP4>=ZLOW GOTOF SKIP_L4
+ZLOW = ZP4
+SKIP_L4:
+STOPRE
+IF ZP5>=ZLOW GOTOF SKIP_L5
+ZLOW = ZP5
+SKIP_L5:
+STOPRE
+IF ZP6>=ZLOW GOTOF SKIP_L6
+ZLOW = ZP6
+SKIP_L6:
+
+ZDEV = ZHIGH - ZLOW
+
+IF ZDEV<=MAXTOPDEV GOTOF Z_OK
+MSG("PALLET TOP DEV > 0.0025")
+SETAL(65501)
+M0
+
+Z_OK:
+STOPRE
+$P_UIFR[WCSIDX,Y,TR] = $P_UIFR[WCSIDX,Y,TR] + ZHIGH
+STOPRE
+
+; Re-activate selected WCS so updated Y is used
+G[8]=WCSG
+
+;=========================================================
+; 7) RETURN HOME
+;=========================================================
+HOME
+STOPRE
+M17
