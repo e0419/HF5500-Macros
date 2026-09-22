@@ -47,7 +47,7 @@ M0
 ;MAKE SURE ZERO POINT BASE IS EMPTY
 ;SET WCS BELOW
 
-WCSNUM        = 56         ; 54..57 or 505..599
+WCSNUM        = 54         ; 54..57 or 505..599
 
 ; Nominal location of hole #1 from machine zero
 ; Converted from mm to inches
